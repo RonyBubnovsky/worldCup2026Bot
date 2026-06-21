@@ -15,11 +15,11 @@ const CHAT_IDS = (process.env.CHAT_ID || "")
 const FIXTURES_URL = "https://www.thestatsapi.com/world-cup/data/fixtures.json";
 const STATE_FILE = "sent.json";
 
-// Alert windows, in minutes before kickoff.
-// 2h alert fires while kickoff is between 60 and 120 minutes away.
-// 1h alert fires while kickoff is between 0 and 60 minutes away.
+// Alert times, in minutes before kickoff. Add or remove entries here freely.
+// Each match gets one message per entry, at roughly that many minutes before start.
 const ALERTS = [
   { target: 120, label: "about 2 hours" },
+  { target: 75, label: "about 1 hour and 15 minutes" },
   { target: 60, label: "about 1 hour" },
 ];
 
@@ -91,6 +91,16 @@ async function main() {
   const now = Date.now();
   let changed = false;
 
+  // Build non-overlapping windows. Sort alerts from earliest (largest target) to
+  // latest. Each alert fires while minutesUntil is between the next lower target
+  // (or 0) and its own target. This way alerts never overlap, even if close together.
+  const windows = [...ALERTS]
+    .sort((a, b) => b.target - a.target)
+    .map((alert, i, arr) => ({
+      ...alert,
+      lower: i < arr.length - 1 ? arr[i + 1].target : 0,
+    }));
+
   for (const f of fixtures) {
     if (!f.kickoffUtc) continue;
     const kickoff = new Date(f.kickoffUtc).getTime();
@@ -98,13 +108,12 @@ async function main() {
 
     const minutesUntil = (kickoff - now) / 60000;
 
-    for (const alert of ALERTS) {
+    for (const alert of windows) {
       const key = `${f.matchNumber}-${alert.target}`;
       if (sent.has(key)) continue;
 
-      const upper = alert.target; // e.g. 120
-      const lower = alert.target - 60; // e.g. 60  -> window is (lower, upper]
-      if (minutesUntil > lower && minutesUntil <= upper) {
+      // Window is (lower, target]. Fires once when the match enters this range.
+      if (minutesUntil > alert.lower && minutesUntil <= alert.target) {
         const home = f.homeTeam || "TBD";
         const away = f.awayTeam || "TBD";
         const stage = f.group ? `Group ${f.group}` : f.stage || "";

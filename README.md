@@ -1,12 +1,14 @@
 # World Cup 2026 Telegram Alerts
 
-A free Telegram bot that sends you a message about 2 hours and about 1 hour before
-each World Cup 2026 match. It runs automatically on GitHub Actions, needs no server,
-and uses a free public fixtures feed. Match times are shown in Israel local time.
+A free Telegram bot that sends you a message about 2 hours, about 1 hour and 15
+minutes, and about 1 hour before each World Cup 2026 match. It runs automatically on
+GitHub Actions, needs no server, and uses a free public fixtures feed. Match times
+are shown in Israel local time.
 
 ## Features
 
-- One alert about 2 hours before kickoff and one about 1 hour before, for every match.
+- Three alerts per match: about 2 hours, about 1 hour and 15 minutes, and about
+  1 hour before kickoff.
 - No duplicate messages. Sent alerts are tracked in sent.json.
 - Supports one or many recipients.
 - Fully free. Uses Telegram, GitHub Actions, and a free fixtures source.
@@ -14,9 +16,9 @@ and uses a free public fixtures feed. Match times are shown in Israel local time
 ## How it works
 
 GitHub Actions runs the script every 5 minutes. Each run downloads the match
-fixtures, checks which matches are about 2 hours or about 1 hour away, and sends a
-Telegram message for those that have not been alerted yet. The script then saves
-which alerts were sent so nothing is repeated.
+fixtures, checks which matches are near one of the alert times, and sends a Telegram
+message for those that have not been alerted yet. The script then saves which alerts
+were sent so nothing is repeated.
 
 ## Files
 
@@ -30,17 +32,21 @@ sent.json                    Tracks which alerts were already sent
 ## Setup
 
 ### 1. Create the bot
+
 In Telegram, open BotFather, send /newbot, follow the steps, and copy the bot token.
 
 ### 2. Get your chat ID
+
 In Telegram, open userinfobot and press start. It replies with your numeric ID.
 Save that number.
 
 ### 3. Start the bot
+
 Open your new bot in Telegram and send it any message. A bot cannot message a user
 who has not started it first.
 
 ### 4. Add the secrets
+
 In the repository, go to Settings, then Secrets and variables, then Actions.
 Add two secrets:
 
@@ -48,6 +54,7 @@ Add two secrets:
 - CHAT_ID: your numeric ID from step 2
 
 ### 5. Run it
+
 Go to the Actions tab, enable workflows if asked, open "World Cup Alerts" and click
 "Run workflow" to test. After that it runs every 5 minutes on its own.
 
@@ -67,7 +74,8 @@ userinfobot. If one person blocks the bot, the others still receive alerts.
 - The repository should be public so GitHub Actions minutes are free and unlimited.
 - No npm install is needed. The script uses the built-in fetch in Node 18 or newer.
 - GitHub may delay scheduled runs by a few minutes. The time windows handle this.
-- To change the alert timing, edit the ALERTS values in check.js.
+- To change the alert times, edit the ALERTS list in check.js. You can add, remove,
+  or change entries freely, and the alerts will not overlap.
 
 ## Data source
 
