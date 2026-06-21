@@ -94,20 +94,10 @@ async function main(env) {
       if (minutesUntil > alert.lower && minutesUntil <= alert.target) {
         const home = f.homeTeam || "TBD";
         const away = f.awayTeam || "TBD";
-        const stage = f.group ? `Group ${f.group}` : f.stage || "";
-        const where = [f.stadium, f.hostCity].filter(Boolean).join(", ");
 
-        const lines = [
-          "World Cup 2026",
-          `Starting in ${alert.label}.`,
-          "",
-          `${home} vs ${away}`,
-        ];
-        if (stage) lines.push(stage);
-        lines.push(`Kickoff: ${formatIsrael(f.kickoffUtc)}`);
-        if (where) lines.push(where);
+        const text = `${home} vs ${away}\n${formatIsrael(f.kickoffUtc)}`;
 
-        await sendMessage(TOKEN, CHAT_IDS, lines.join("\n"));
+        await sendMessage(TOKEN, CHAT_IDS, text);
         sent.add(key);
         changed = true;
         console.log(`Sent ${key}: ${home} vs ${away}`);
