@@ -9,3 +9,6 @@ crons = ["*/5 * * * *"]
 [[kv_namespaces]]
 binding = "WORLDCUP_KV"
 id = "a384229f0cc64f5aaae75aa594a94c5c"
+
+[observability]
+enabled = true
