@@ -73,6 +73,9 @@ wrangler deploy
 
 The worker is now live and runs every 5 minutes automatically.
 
+Subsequent pushes to `main` are deployed automatically via GitHub Actions.
+The workflow only needs a `CLOUDFLARE_API_TOKEN` repository secret.
+
 ## Adding more recipients
 
 Put several IDs in the CHAT_ID secret separated by commas, for example:
