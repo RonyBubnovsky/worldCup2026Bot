@@ -1,0 +1,11 @@
+name = "worldcup-alerts"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+account_id = "567c1f4f9ba2ee0735745fbafb3976d4"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "WORLDCUP_KV"
+id = "a384229f0cc64f5aaae75aa594a94c5c"

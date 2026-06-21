@@ -1,41 +1,17 @@
-// World Cup 2026 Telegram alert bot.
-// Runs on a schedule (GitHub Actions). Sends one alert ~2 hours and one ~1 hour
-// before each match. Uses a small state file (sent.json) so nothing is sent twice.
+// World Cup 2026 Telegram alert bot — Cloudflare Workers edition.
+// Same logic as check.js, with two adaptations:
+//   1. State stored in Cloudflare KV instead of sent.json
+//   2. Secrets come from env object, not process.env
 
-const fs = require("fs");
-
-const TOKEN = process.env.TELEGRAM_TOKEN;
-// CHAT_ID can be one ID or several separated by commas, e.g. "111,222,333".
-const CHAT_IDS = (process.env.CHAT_ID || "")
-  .split(",")
-  .map((id) => id.trim())
-  .filter(Boolean);
-
-// Free fixtures data (no API key). License: free with attribution to TheStatsAPI.
 const FIXTURES_URL = "https://www.thestatsapi.com/world-cup/data/fixtures.json";
-const STATE_FILE = "sent.json";
 
-// Alert times, in minutes before kickoff. Add or remove entries here freely.
-// Each match gets one message per entry, at roughly that many minutes before start.
+// Alert times, in minutes before kickoff.
 const ALERTS = [
   { target: 120, label: "about 2 hours" },
-  { target: 75, label: "about 1 hour and 15 minutes" },
-  { target: 60, label: "about 1 hour" },
+  { target: 75,  label: "about 1 hour and 15 minutes" },
+  { target: 60,  label: "about 1 hour" },
 ];
 
-function loadState() {
-  try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-  } catch {
-    return [];
-  }
-}
-
-function saveState(arr) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify(arr, null, 2));
-}
-
-// Format a UTC kickoff string as Israel local time (handles summer time automatically).
 function formatIsrael(iso) {
   const d = new Date(iso);
   const date = new Intl.DateTimeFormat("en-GB", {
@@ -53,18 +29,14 @@ function formatIsrael(iso) {
   return `${time} Israel time, ${date}`;
 }
 
-async function sendMessage(text) {
-  const url = `https://api.telegram.org/bot${TOKEN}/sendMessage`;
-  for (const chatId of CHAT_IDS) {
+async function sendMessage(token, chatIds, text) {
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  for (const chatId of chatIds) {
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text,
-          disable_web_page_preview: true,
-        }),
+        body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
       });
       if (!res.ok) {
         const body = await res.text();
@@ -76,10 +48,16 @@ async function sendMessage(text) {
   }
 }
 
-async function main() {
+async function main(env) {
+  const TOKEN = env.TELEGRAM_TOKEN;
+  const CHAT_IDS = (env.CHAT_ID || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+
   if (!TOKEN || CHAT_IDS.length === 0) {
-    console.error("Missing TELEGRAM_TOKEN or CHAT_ID environment variables.");
-    process.exit(1);
+    console.error("Missing TELEGRAM_TOKEN or CHAT_ID");
+    return;
   }
 
   const res = await fetch(FIXTURES_URL);
@@ -87,13 +65,14 @@ async function main() {
   const data = await res.json();
   const fixtures = Array.isArray(data.fixtures) ? data.fixtures : [];
 
-  const sent = new Set(loadState());
-  const now = Date.now();
+  // Load state from KV (replaces fs.readFileSync on sent.json)
+  const sentRaw = await env.WORLDCUP_KV.get("sent");
+  const sent = new Set(sentRaw ? JSON.parse(sentRaw) : []);
   let changed = false;
 
-  // Build non-overlapping windows. Sort alerts from earliest (largest target) to
-  // latest. Each alert fires while minutesUntil is between the next lower target
-  // (or 0) and its own target. This way alerts never overlap, even if close together.
+  const now = Date.now();
+
+  // Build non-overlapping windows, same logic as check.js
   const windows = [...ALERTS]
     .sort((a, b) => b.target - a.target)
     .map((alert, i, arr) => ({
@@ -112,7 +91,6 @@ async function main() {
       const key = `${f.matchNumber}-${alert.target}`;
       if (sent.has(key)) continue;
 
-      // Window is (lower, target]. Fires once when the match enters this range.
       if (minutesUntil > alert.lower && minutesUntil <= alert.target) {
         const home = f.homeTeam || "TBD";
         const away = f.awayTeam || "TBD";
@@ -129,7 +107,7 @@ async function main() {
         lines.push(`Kickoff: ${formatIsrael(f.kickoffUtc)}`);
         if (where) lines.push(where);
 
-        await sendMessage(lines.join("\n"));
+        await sendMessage(TOKEN, CHAT_IDS, lines.join("\n"));
         sent.add(key);
         changed = true;
         console.log(`Sent ${key}: ${home} vs ${away}`);
@@ -138,14 +116,16 @@ async function main() {
   }
 
   if (changed) {
-    saveState([...sent]);
+    // Save state to KV (replaces fs.writeFileSync + git commit/push)
+    await env.WORLDCUP_KV.put("sent", JSON.stringify([...sent]));
     console.log("State updated.");
   } else {
     console.log("No alerts to send this run.");
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(main(env));
+  },
+};

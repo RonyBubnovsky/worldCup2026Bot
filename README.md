@@ -2,31 +2,29 @@
 
 A free Telegram bot that sends you a message about 2 hours, about 1 hour and 15
 minutes, and about 1 hour before each World Cup 2026 match. It runs automatically on
-GitHub Actions, needs no server, and uses a free public fixtures feed. Match times
+Cloudflare Workers, needs no server, and uses a free public fixtures feed. Match times
 are shown in Israel local time.
 
 ## Features
 
 - Three alerts per match: about 2 hours, about 1 hour and 15 minutes, and about
   1 hour before kickoff.
-- No duplicate messages. Sent alerts are tracked in sent.json.
+- No duplicate messages. Sent alerts are tracked in Cloudflare KV.
 - Supports one or many recipients.
-- Fully free. Uses Telegram, GitHub Actions, and a free fixtures source.
+- Fully free. Uses Telegram, Cloudflare Workers, and a free fixtures source.
 
 ## How it works
 
-GitHub Actions runs the script every 5 minutes. Each run downloads the match
-fixtures, checks which matches are near one of the alert times, and sends a Telegram
-message for those that have not been alerted yet. The script then saves which alerts
-were sent so nothing is repeated.
+Cloudflare Workers runs the script every 5 minutes on a precise cron schedule.
+Each run downloads the match fixtures, checks which matches are near one of the
+alert times, and sends a Telegram message for those that have not been alerted yet.
+The script then saves which alerts were sent to Cloudflare KV so nothing is repeated.
 
 ## Files
 
 ```
-check.js                     The script that checks matches and sends alerts
-package.json                 Basic project info (no dependencies to install)
-sent.json                    Tracks which alerts were already sent
-.github/workflows/alert.yml  The schedule that runs the script
+worker.js       The script that checks matches and sends alerts
+wrangler.toml   Cloudflare Workers config (cron schedule, KV binding)
 ```
 
 ## Setup
@@ -45,18 +43,35 @@ Save that number.
 Open your new bot in Telegram and send it any message. A bot cannot message a user
 who has not started it first.
 
-### 4. Add the secrets
+### 4. Install Wrangler
 
-In the repository, go to Settings, then Secrets and variables, then Actions.
-Add two secrets:
+```bash
+npm install -g wrangler
+wrangler login
+```
 
-- TELEGRAM_TOKEN: your bot token from step 1
-- CHAT_ID: your numeric ID from step 2
+### 5. Create the KV namespace
 
-### 5. Run it
+```bash
+wrangler kv namespace create WORLDCUP_KV
+```
 
-Go to the Actions tab, enable workflows if asked, open "World Cup Alerts" and click
-"Run workflow" to test. After that it runs every 5 minutes on its own.
+Copy the `id` from the output and paste it into `wrangler.toml`.
+
+### 6. Add secrets
+
+```bash
+wrangler secret put TELEGRAM_TOKEN
+wrangler secret put CHAT_ID
+```
+
+### 7. Deploy
+
+```bash
+wrangler deploy
+```
+
+The worker is now live and runs every 5 minutes automatically.
 
 ## Adding more recipients
 
@@ -71,11 +86,10 @@ userinfobot. If one person blocks the bot, the others still receive alerts.
 
 ## Notes
 
-- The repository should be public so GitHub Actions minutes are free and unlimited.
-- No npm install is needed. The script uses the built-in fetch in Node 18 or newer.
-- GitHub may delay scheduled runs by a few minutes. The time windows handle this.
-- To change the alert times, edit the ALERTS list in check.js. You can add, remove,
+- No npm install is needed. The worker uses the built-in fetch in the Workers runtime.
+- To change the alert times, edit the ALERTS list in worker.js. You can add, remove,
   or change entries freely, and the alerts will not overlap.
+- After editing worker.js, redeploy with `wrangler deploy`.
 
 ## Data source
 
