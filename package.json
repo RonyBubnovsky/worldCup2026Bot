@@ -1,0 +1,9 @@
+{
+  "name": "worldcup-telegram-alerts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "check": "node check.js"
+  }
+}
