@@ -128,4 +128,7 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(main(env));
   },
+  async fetch(request, env, ctx) {
+    return new Response("OK", { status: 200 });
+  },
 };
