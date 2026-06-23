@@ -60,10 +60,22 @@ async function main(env) {
     return;
   }
 
-  const res = await fetch(FIXTURES_URL);
-  if (!res.ok) throw new Error(`Fixtures fetch failed: ${res.status}`);
-  const data = await res.json();
-  const fixtures = Array.isArray(data.fixtures) ? data.fixtures : [];
+  // Fetch fixtures; on any failure fall back to the last good copy cached in KV.
+  let fixtures = [];
+  let usedFallback = false;
+  try {
+    const res = await fetch(FIXTURES_URL);
+    if (!res.ok) throw new Error(`Fixtures fetch failed: ${res.status}`);
+    const data = await res.json();
+    fixtures = Array.isArray(data.fixtures) ? data.fixtures : [];
+    await env.WORLDCUP_KV.put("fixtures_cache", JSON.stringify(fixtures));
+  } catch (err) {
+    console.error("Fixtures fetch failed, trying cache:", err.message);
+    const cached = await env.WORLDCUP_KV.get("fixtures_cache");
+    if (!cached) throw err; // no cache yet, nothing we can do
+    fixtures = JSON.parse(cached);
+    usedFallback = true;
+  }
 
   // Load state from KV (replaces fs.readFileSync on sent.json)
   const sentRaw = await env.WORLDCUP_KV.get("sent");
@@ -95,7 +107,10 @@ async function main(env) {
         const home = f.homeTeam || "TBD";
         const away = f.awayTeam || "TBD";
 
-        const text = `${home} vs ${away}\n${formatIsrael(f.kickoffUtc)}`;
+        let text = `${home} vs ${away}\n${formatIsrael(f.kickoffUtc)}`;
+        if (usedFallback) {
+          text += `\n\nNote: sent from locally stored fixtures, details may be out of date.`;
+        }
 
         await sendMessage(TOKEN, CHAT_IDS, text);
         sent.add(key);
