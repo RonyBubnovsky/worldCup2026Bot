@@ -1,14 +1,16 @@
 # World Cup 2026 Telegram Alerts
 
-A free Telegram bot that sends you a message about 2 hours, about 1 hour and 15
-minutes, and about 1 hour before each World Cup 2026 match. It runs automatically on
-Cloudflare Workers, needs no server, and uses a free public fixtures feed. Match times
-are shown in Israel local time.
+A free Telegram bot that sends you a message about 1 hour and 15 minutes, and
+about 1 hour before each World Cup 2026 match. It runs automatically on
+Cloudflare Workers, needs no server, and uses a free public fixtures feed. Each
+message leads with the round (e.g. "Round of 32"), and match times are shown in
+Israel local time.
 
 ## Features
 
-- Three alerts per match: about 2 hours, about 1 hour and 15 minutes, and about
-  1 hour before kickoff.
+- Two alerts per match: about 1 hour and 15 minutes, and about 1 hour before kickoff.
+- Real knockout team names. The feed resolves the bracket forward as games are
+  played, so "winner of match 73" becomes the actual team automatically.
 - No duplicate messages. Sent alerts are tracked in Cloudflare KV.
 - Supports one or many recipients.
 - Fully free. Uses Telegram, Cloudflare Workers, and a free fixtures source.
@@ -96,5 +98,8 @@ userinfobot. If one person blocks the bot, the others still receive alerts.
 
 ## Data source
 
-Match fixtures come from TheStatsAPI, free to use with attribution.
-Source: https://www.thestatsapi.com/world-cup/data
+Match fixtures, results, and the knockout bracket come from the openfootball
+project, a free public-domain football database. The bot reads the raw JSON
+directly from GitHub each run, so resolved team names and scores arrive without
+any manual updates.
+Source: https://github.com/openfootball/worldcup.json (`2026/worldcup.json`)

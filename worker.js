@@ -1,16 +1,32 @@
 // World Cup 2026 Telegram alert bot — Cloudflare Workers edition.
-// Same logic as check.js, with two adaptations:
-//   1. State stored in Cloudflare KV instead of sent.json
-//   2. Secrets come from env object, not process.env
+// State stored in Cloudflare KV (not sent.json); secrets come from env, not process.env.
+//
+// Data source: openfootball/worldcup.json. Unlike a plain fixtures list, this feed
+// carries live results and resolves the knockout bracket forward as matches are played
+// (e.g. "W73" becomes the real winner's name within hours of that game), so team names
+// fill themselves in all the way to the final with no manual upkeep.
 
-const FIXTURES_URL = "https://www.thestatsapi.com/world-cup/data/fixtures.json";
+const FIXTURES_URL =
+  "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
 
 // Alert times, in minutes before kickoff.
 const ALERTS = [
-  { target: 120, label: "about 2 hours" },
-  { target: 75,  label: "about 1 hour and 15 minutes" },
-  { target: 60,  label: "about 1 hour" },
+  { target: 75, label: "about 1 hour and 15 minutes" },
+  { target: 60, label: "about 1 hour" },
 ];
+
+// Convert an openfootball date + local time into an ISO instant.
+// time looks like "16:30 UTC-4"; we turn the "UTC-4" offset into an ISO "-04:00"
+// suffix so new Date() reads it as the correct UTC moment regardless of host.
+// ponytail: assumes the "HH:MM UTC±N" shape the feed uses; returns null if it ever differs.
+function kickoffUtc(date, time) {
+  const m = (time || "").match(/^(\d{1,2}):(\d{2})\s+UTC([+-]\d{1,2})$/);
+  if (!m) return null;
+  const [, hh, mm, off] = m;
+  const sign = off[0];
+  const hours = String(Math.abs(parseInt(off, 10))).padStart(2, "0");
+  return `${date}T${hh.padStart(2, "0")}:${mm}:00${sign}${hours}:00`;
+}
 
 function formatIsrael(iso) {
   const d = new Date(iso);
@@ -61,21 +77,32 @@ async function main(env) {
   }
 
   // Fetch fixtures; on any failure fall back to the last good copy cached in KV.
-  let fixtures = [];
+  let matches = [];
   let usedFallback = false;
   try {
     const res = await fetch(FIXTURES_URL);
     if (!res.ok) throw new Error(`Fixtures fetch failed: ${res.status}`);
     const data = await res.json();
-    fixtures = Array.isArray(data.fixtures) ? data.fixtures : [];
-    await env.WORLDCUP_KV.put("fixtures_cache", JSON.stringify(fixtures));
+    matches = Array.isArray(data.matches) ? data.matches : [];
+    await env.WORLDCUP_KV.put("fixtures_cache", JSON.stringify(matches));
   } catch (err) {
     console.error("Fixtures fetch failed, trying cache:", err.message);
     const cached = await env.WORLDCUP_KV.get("fixtures_cache");
     if (!cached) throw err; // no cache yet, nothing we can do
-    fixtures = JSON.parse(cached);
+    matches = JSON.parse(cached);
     usedFallback = true;
   }
+
+  // Normalize the openfootball shape into the fields the alert loop uses.
+  // id keeps the knockout match number (so existing dedup keys still match); group
+  // games have no num, so they get a stable synthetic id — harmless, they're all past.
+  const fixtures = matches.map((m) => ({
+    id: m.num ?? `${m.date}-${m.team1}-${m.team2}`,
+    round: m.round,
+    homeTeam: m.team1,
+    awayTeam: m.team2,
+    kickoffUtc: kickoffUtc(m.date, m.time),
+  }));
 
   // Load state from KV (replaces fs.readFileSync on sent.json)
   const sentRaw = await env.WORLDCUP_KV.get("sent");
@@ -100,14 +127,14 @@ async function main(env) {
     const minutesUntil = (kickoff - now) / 60000;
 
     for (const alert of windows) {
-      const key = `${f.matchNumber}-${alert.target}`;
+      const key = `${f.id}-${alert.target}`;
       if (sent.has(key)) continue;
 
       if (minutesUntil > alert.lower && minutesUntil <= alert.target) {
         const home = f.homeTeam || "TBD";
         const away = f.awayTeam || "TBD";
 
-        let text = `${home} vs ${away}\n${formatIsrael(f.kickoffUtc)}`;
+        let text = `${f.round}\n${home} vs ${away}\n${formatIsrael(f.kickoffUtc)}`;
         if (usedFallback) {
           text += `\n\nNote: sent from locally stored fixtures, details may be out of date.`;
         }

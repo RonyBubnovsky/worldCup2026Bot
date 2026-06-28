@@ -20,7 +20,7 @@ There are no tests or linters configured.
 Everything lives in `main(env)` in `worker.js`, invoked from the `scheduled` cron handler (every 5 minutes per `wrangler.toml`). The `fetch` handler only returns `200 OK` for health checks.
 
 Each run:
-1. Fetches fixtures JSON from `FIXTURES_URL` (TheStatsAPI). On success, caches it to the `fixtures_cache` KV key. On any fetch failure, falls back to that cached copy and appends a "may be out of date" note to each message; if no cache exists yet, it re-throws (no empty run).
+1. Fetches fixtures JSON from `FIXTURES_URL` (openfootball/worldcup.json, `master` branch, raw URL). On success, caches the raw `matches` array to the `fixtures_cache` KV key. On any fetch failure, falls back to that cached copy and appends a "may be out of date" note to each message; if no cache exists yet, it re-throws (no empty run). The feed carries live results and resolves the knockout bracket forward (`W73` → the real winner) as games are played, so knockout team names fill in automatically with no manual upkeep. Matches are normalized (`team1`/`team2` → home/away, `date`+`time` → `kickoffUtc` via `kickoffUtc()`, `num` → `id`) before the alert loop.
 2. Reads the `sent` key from KV (binding `WORLDCUP_KV`) — a JSON array of already-alerted keys.
 3. For each fixture, computes minutes until kickoff and checks it against alert **windows**.
 4. Sends Telegram messages for newly-matched windows and writes the updated `sent` set back to KV.
@@ -30,7 +30,7 @@ Two KV keys: `sent` (dedup state) and `fixtures_cache` (last-known-good fixtures
 Key things to understand before editing:
 
 - **Alert windows, not exact times.** `ALERTS` defines target minutes-before-kickoff. At runtime they're sorted descending and each gets a `lower` bound (the next target down, or 0), forming non-overlapping ranges. A fixture fires an alert when `lower < minutesUntil <= target`. This is why a 5-minute cron never double-fires or misses: each window is wider than the cron interval. Editing `ALERTS` is safe — windows are recomputed automatically.
-- **Dedup key is `${matchNumber}-${target}`.** State persistence is KV, not a file. Changing the key format orphans existing KV state (everything re-alerts once).
+- **Dedup key is `${id}-${target}`.** `id` is the openfootball match `num` for knockout games (73–104) and a synthetic `date-team1-team2` for group games (which have no `num`, and are all in the past). Knockout ids equal the old `matchNumber`, so existing KV state stays valid. Changing the key format orphans existing KV state (everything re-alerts once).
 - **`CHAT_ID` is comma-separated.** Multiple recipients; a failed send to one is logged and skipped, others still receive.
 - **Times display in `Asia/Jerusalem`** via `Intl.DateTimeFormat`, regardless of where the worker runs.
 
