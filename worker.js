@@ -4,7 +4,7 @@
 // Data source: openfootball/worldcup.json. Unlike a plain fixtures list, this feed
 // carries live results and resolves the knockout bracket forward as matches are played
 // (e.g. "W73" becomes the real winner's name within hours of that game), so team names
-// fill themselves in all the way to the final with no manual upkeep.
+// fill themselves in all the way to the final with no manual upkeep
 
 const FIXTURES_URL =
   "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json";
