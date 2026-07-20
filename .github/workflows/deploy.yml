@@ -1,18 +1,32 @@
-name: Deploy to Cloudflare Workers
+# Disabled: Worker + KV namespace deleted after World Cup 2026 ended.
+# Trigger set to manual-only (workflow_dispatch) so nothing auto-deploys.
+# Restore original push-to-main trigger + job below to re-enable.
+name: Deploy to Cloudflare Workers (disabled)
 
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: {}
 
 jobs:
-  deploy:
+  noop:
     runs-on: ubuntu-latest
-    name: Deploy Worker
     steps:
-      - uses: actions/checkout@v4
+      - run: echo "Deploy disabled — worker deleted post World Cup 2026"
 
-      - uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: 567c1f4f9ba2ee0735745fbafb3976d4
+# Original workflow:
+#
+# on:
+#   push:
+#     branches:
+#       - main
+#
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     name: Deploy Worker
+#     steps:
+#       - uses: actions/checkout@v4
+#
+#       - uses: cloudflare/wrangler-action@v3
+#         with:
+#           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+#           accountId: 567c1f4f9ba2ee0735745fbafb3976d4
